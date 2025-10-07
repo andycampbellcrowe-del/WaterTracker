@@ -212,8 +212,10 @@ export async function createInvitation(
 
 /**
  * Get invitation by code
+ * Checks both household_invitations table and households.invite_code
  */
 export async function getInvitationByCode(inviteCode: string): Promise<HouseholdInvitation | null> {
+  // First, try to find in household_invitations table (temporary invites)
   const { data, error } = await supabase
     .from('household_invitations')
     .select('*')
@@ -221,27 +223,52 @@ export async function getInvitationByCode(inviteCode: string): Promise<Household
     .eq('status', 'pending')
     .single();
 
-  if (error) {
-    if (error.code === 'PGRST116') return null;
-    throw error;
+  if (!error && data) {
+    // Check if expired
+    if (new Date(data.expires_at) < new Date()) {
+      return null;
+    }
+
+    return {
+      id: data.id,
+      householdId: data.household_id,
+      invitedByUserId: data.invited_by_user_id,
+      email: data.email,
+      inviteCode: data.invite_code,
+      status: data.status,
+      expiresAt: data.expires_at,
+      createdAt: data.created_at,
+      acceptedAt: data.accepted_at,
+      acceptedByUserId: data.accepted_by_user_id
+    };
   }
 
-  // Check if expired
-  if (new Date(data.expires_at) < new Date()) {
+  // If not found in household_invitations, check households.invite_code (permanent invite)
+  const { data: household, error: householdError } = await supabase
+    .from('households')
+    .select('id, invite_code')
+    .eq('invite_code', inviteCode)
+    .single();
+
+  if (householdError || !household) {
     return null;
   }
 
+  // Return a mock invitation object for permanent household invite codes
+  // Permanent invites never expire, so set far future date
+  const farFuture = new Date('2099-12-31').toISOString();
+
   return {
-    id: data.id,
-    householdId: data.household_id,
-    invitedByUserId: data.invited_by_user_id,
-    email: data.email,
-    inviteCode: data.invite_code,
-    status: data.status,
-    expiresAt: data.expires_at,
-    createdAt: data.created_at,
-    acceptedAt: data.accepted_at,
-    acceptedByUserId: data.accepted_by_user_id
+    id: '',
+    householdId: household.id,
+    invitedByUserId: '',
+    email: null,
+    inviteCode: household.invite_code!,
+    status: 'pending',
+    expiresAt: farFuture,
+    createdAt: new Date().toISOString(),
+    acceptedAt: null,
+    acceptedByUserId: null
   };
 }
 
