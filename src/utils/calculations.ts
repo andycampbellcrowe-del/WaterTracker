@@ -1,9 +1,4 @@
-import { AppSettings, IntakeEntry, UserId, DayStats, KPIData } from '../types';
-
-export function getBottleSize(settings: AppSettings, user: UserId): number {
-  const bottlesPerGoal = user === 'rachel' ? settings.rachelBottlesPerGoal : settings.andyBottlesPerGoal;
-  return settings.dailyGoalVolume / bottlesPerGoal;
-}
+import { AppSettings, IntakeEntry, HouseholdUser, DayStats, KPIData } from '../types';
 
 export function getLocalDateString(date: Date = new Date()): string {
   const year = date.getFullYear();
@@ -38,9 +33,9 @@ export function getTodayTotal(entries: IntakeEntry[]): number {
   return todayEntries.reduce((sum, entry) => sum + entry.volumeOz, 0);
 }
 
-export function getTodayByUser(entries: IntakeEntry[], user: UserId): number {
+export function getTodayByUserId(entries: IntakeEntry[], householdUserId: string): number {
   const todayEntries = getTodayEntries(entries);
-  return todayEntries.filter(e => e.user === user)
+  return todayEntries.filter(e => e.householdUserId === householdUserId)
     .reduce((sum, entry) => sum + entry.volumeOz, 0);
 }
 
@@ -48,23 +43,23 @@ export function getProgressPercent(totalOz: number, goalOz: number): number {
   return Math.min(100, Math.max(0, (totalOz / goalOz) * 100));
 }
 
-export function getDayStats(entries: IntakeEntry[], dateString: string, goalOz: number): DayStats {
+export function getDayStats(entries: IntakeEntry[], dateString: string, goalOz: number, users: HouseholdUser[]): DayStats {
   const dayEntries = filterEntriesByDate(entries, dateString);
 
-  const rachelVolume = dayEntries
-    .filter(e => e.user === 'rachel')
-    .reduce((sum, e) => sum + e.volumeOz, 0);
+  const userVolumes: { [userId: string]: number } = {};
+  let totalVolume = 0;
 
-  const andyVolume = dayEntries
-    .filter(e => e.user === 'andy')
-    .reduce((sum, e) => sum + e.volumeOz, 0);
-
-  const totalVolume = rachelVolume + andyVolume;
+  users.forEach(user => {
+    const volume = dayEntries
+      .filter(e => e.householdUserId === user.id)
+      .reduce((sum, e) => sum + e.volumeOz, 0);
+    userVolumes[user.id] = volume;
+    totalVolume += volume;
+  });
 
   return {
     date: dateString,
-    rachelVolume,
-    andyVolume,
+    userVolumes,
     totalVolume,
     goalMet: totalVolume >= goalOz
   };
@@ -88,7 +83,8 @@ export function getDateRange(rangeType: 'week' | 'month' | 'year'): { start: Dat
 export function getStatsForRange(
   entries: IntakeEntry[],
   rangeType: 'week' | 'month' | 'year',
-  goalOz: number
+  goalOz: number,
+  users: HouseholdUser[]
 ): DayStats[] {
   const { start, end } = getDateRange(rangeType);
   const stats: DayStats[] = [];
@@ -96,14 +92,14 @@ export function getStatsForRange(
   const current = new Date(start);
   while (current <= end) {
     const dateString = getLocalDateString(current);
-    stats.push(getDayStats(entries, dateString, goalOz));
+    stats.push(getDayStats(entries, dateString, goalOz, users));
     current.setDate(current.getDate() + 1);
   }
 
   return stats;
 }
 
-export function calculateKPIs(stats: DayStats[]): KPIData {
+export function calculateKPIs(stats: DayStats[], users: HouseholdUser[]): KPIData {
   const totalDays = stats.length;
   const daysGoalMet = stats.filter(s => s.goalMet).length;
   const daysGoalMetPercent = totalDays > 0 ? (daysGoalMet / totalDays) * 100 : 0;
@@ -111,14 +107,20 @@ export function calculateKPIs(stats: DayStats[]): KPIData {
   const totalVolume = stats.reduce((sum, s) => sum + s.totalVolume, 0);
   const avgDailyIntake = totalDays > 0 ? totalVolume / totalDays : 0;
 
-  const totalRachel = stats.reduce((sum, s) => sum + s.rachelVolume, 0);
-  const totalAndy = stats.reduce((sum, s) => sum + s.andyVolume, 0);
+  const userAverages: { [userId: string]: number } = {};
+  const userPercentages: { [userId: string]: number } = {};
+  let totalUserVolume = 0;
 
-  const avgDailyRachel = totalDays > 0 ? totalRachel / totalDays : 0;
-  const avgDailyAndy = totalDays > 0 ? totalAndy / totalDays : 0;
+  users.forEach(user => {
+    const userTotal = stats.reduce((sum, s) => sum + (s.userVolumes[user.id] || 0), 0);
+    userAverages[user.id] = totalDays > 0 ? userTotal / totalDays : 0;
+    totalUserVolume += userTotal;
+  });
 
-  const rachelPercent = totalVolume > 0 ? (totalRachel / totalVolume) * 100 : 50;
-  const andyPercent = totalVolume > 0 ? (totalAndy / totalVolume) * 100 : 50;
+  users.forEach(user => {
+    const userTotal = stats.reduce((sum, s) => sum + (s.userVolumes[user.id] || 0), 0);
+    userPercentages[user.id] = totalUserVolume > 0 ? (userTotal / totalUserVolume) * 100 : 100 / users.length;
+  });
 
   // Calculate streaks
   let currentStreak = 0;
@@ -156,12 +158,10 @@ export function calculateKPIs(stats: DayStats[]): KPIData {
     daysGoalMetPercent,
     totalDays,
     avgDailyIntake,
-    avgDailyRachel,
-    avgDailyAndy,
+    userAverages,
     currentStreak,
     longestStreak,
-    rachelPercent,
-    andyPercent,
+    userPercentages,
     peakDay
   };
 }

@@ -1,155 +1,236 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { AppState, AppSettings, IntakeEntry, UserId } from '../types';
-import { generateDemoData } from '../utils/demoData';
-import { litersToOz, ozToLiters } from '../utils/conversions';
+import { AppState, AppSettings, IntakeEntry, HouseholdUser, Household } from '../types';
 import { getLocalDateString } from '../utils/calculations';
-
-const STORAGE_KEY = 'water-tracker-state';
+import { useAuth } from './AuthContext';
+import * as supabaseService from '../services/supabaseService';
 
 const defaultSettings: AppSettings = {
   unit: 'oz',
-  dailyGoalVolume: 128, // 128 oz = 1 gallon
-  rachelBottlesPerGoal: 8,
-  andyBottlesPerGoal: 8,
+  dailyGoalVolume: 128,
   celebrationEnabled: true,
   soundEnabled: true
 };
 
 const defaultState: AppState = {
+  household: null,
+  currentUser: null,
   settings: defaultSettings,
+  users: [],
   entries: [],
   celebratedDates: []
 };
 
 interface AppContextType {
   state: AppState;
-  updateSettings: (settings: Partial<AppSettings>) => void;
-  addIntake: (user: UserId, bottleCount: number) => void;
-  deleteEntry: (id: string) => void;
-  updateEntry: (id: string, volumeOz: number) => void;
+  loading: boolean;
+  needsOnboarding: boolean;
+  updateSettings: (settings: Partial<AppSettings>) => Promise<void>;
+  addIntake: (householdUserId: string, volumeOz: number) => Promise<void>;
+  deleteEntry: (id: string) => Promise<void>;
+  updateUser: (userId: string, updates: { displayName?: string; color?: string; bottleSizeOz?: number }) => Promise<void>;
+  deleteUserFromHousehold: (userId: string) => Promise<void>;
   exportData: () => string;
-  importData: (jsonString: string) => boolean;
-  resetData: () => void;
-  markDateCelebrated: (date: string) => void;
+  resetData: () => Promise<void>;
+  markDateCelebrated: (date: string) => Promise<void>;
   hasBeenCelebratedToday: () => boolean;
+  refreshData: () => Promise<void>;
+  getInviteCode: () => string | null;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export function AppProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<AppState>(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored);
-        // Migration: handle old bottlesPerGoal format
-        if (parsed.settings && 'bottlesPerGoal' in parsed.settings) {
-          const oldBottlesPerGoal = parsed.settings.bottlesPerGoal;
-          parsed.settings.rachelBottlesPerGoal = oldBottlesPerGoal;
-          parsed.settings.andyBottlesPerGoal = oldBottlesPerGoal;
-          delete parsed.settings.bottlesPerGoal;
-        }
-        return parsed;
-      } catch {
-        return { ...defaultState, entries: generateDemoData() };
-      }
-    }
-    return { ...defaultState, entries: generateDemoData() };
-  });
+  const { user } = useAuth();
+  const [state, setState] = useState<AppState>(defaultState);
+  const [loading, setLoading] = useState(true);
+  const [needsOnboarding, setNeedsOnboarding] = useState(false);
 
+  // Load data from Supabase when user logs in
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  }, [state]);
+    if (user) {
+      loadDataFromSupabase();
+    } else {
+      setLoading(false);
+      setState(defaultState);
+      setNeedsOnboarding(false);
+    }
+  }, [user]);
 
-  const updateSettings = (newSettings: Partial<AppSettings>) => {
-    setState(prev => {
-      let settings = { ...prev.settings, ...newSettings };
-
-      // Handle unit conversion
-      if (newSettings.unit && newSettings.unit !== prev.settings.unit) {
-        if (newSettings.unit === 'l') {
-          settings.dailyGoalVolume = ozToLiters(prev.settings.dailyGoalVolume);
-        } else {
-          settings.dailyGoalVolume = litersToOz(prev.settings.dailyGoalVolume);
-        }
-      }
-
-      return { ...prev, settings };
-    });
-  };
-
-  const addIntake = (user: UserId, bottleCount: number) => {
-    setState(prev => {
-      const bottlesPerGoal = user === 'rachel' ? prev.settings.rachelBottlesPerGoal : prev.settings.andyBottlesPerGoal;
-      const bottleSize = prev.settings.dailyGoalVolume / bottlesPerGoal;
-      const volumeInCurrentUnit = bottleSize * bottleCount;
-
-      // Convert to oz if needed
-      const volumeOz = prev.settings.unit === 'l'
-        ? litersToOz(volumeInCurrentUnit)
-        : volumeInCurrentUnit;
-
-      const newEntry: IntakeEntry = {
-        id: `${Date.now()}-${Math.random()}`,
-        user,
-        volumeOz,
-        timestamp: new Date().toISOString()
-      };
-
-      return {
-        ...prev,
-        entries: [...prev.entries, newEntry]
-      };
-    });
-  };
-
-  const deleteEntry = (id: string) => {
-    setState(prev => ({
-      ...prev,
-      entries: prev.entries.filter(e => e.id !== id)
-    }));
-  };
-
-  const updateEntry = (id: string, volumeOz: number) => {
-    setState(prev => ({
-      ...prev,
-      entries: prev.entries.map(e =>
-        e.id === id ? { ...e, volumeOz } : e
-      )
-    }));
-  };
-
-  const exportData = (): string => {
-    return JSON.stringify(state, null, 2);
-  };
-
-  const importData = (jsonString: string): boolean => {
+  const loadDataFromSupabase = async () => {
     try {
-      const imported = JSON.parse(jsonString);
-      if (imported.settings && imported.entries && Array.isArray(imported.entries)) {
-        setState(imported);
-        return true;
+      setLoading(true);
+
+      // Get current user's household_user record
+      const currentHouseholdUser = await supabaseService.getCurrentHouseholdUser();
+
+      if (!currentHouseholdUser) {
+        // User needs onboarding (create or join household)
+        console.log('No household user found - needs onboarding');
+        setNeedsOnboarding(true);
+        setState(defaultState);
+        setLoading(false);
+        return;
       }
-      return false;
-    } catch {
-      return false;
+
+      // User is already in a household - load all data
+      console.log('Household user found:', currentHouseholdUser);
+      setNeedsOnboarding(false);
+
+      const [household, settings, users, entries, celebratedDates] = await Promise.all([
+        supabaseService.getHousehold(currentHouseholdUser.householdId),
+        supabaseService.getSettings(currentHouseholdUser.householdId),
+        supabaseService.getHouseholdUsers(currentHouseholdUser.householdId),
+        supabaseService.getIntakeEntries(currentHouseholdUser.householdId),
+        supabaseService.getCelebratedDates(currentHouseholdUser.householdId)
+      ]);
+
+      setState({
+        household,
+        currentUser: currentHouseholdUser,
+        settings,
+        users,
+        entries,
+        celebratedDates
+      });
+    } catch (error) {
+      console.error('Failed to load data:', error);
+      // If we fail to load data, assume needs onboarding
+      setNeedsOnboarding(true);
+      setState(defaultState);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const resetData = () => {
-    setState({ ...defaultState, entries: [] });
+  const refreshData = async () => {
+    await loadDataFromSupabase();
   };
 
-  const markDateCelebrated = (date: string) => {
-    setState(prev => {
-      if (!prev.celebratedDates.includes(date)) {
-        return {
-          ...prev,
-          celebratedDates: [...prev.celebratedDates, date]
-        };
-      }
-      return prev;
-    });
+  const updateSettings = async (newSettings: Partial<AppSettings>) => {
+    if (!state.household) return;
+
+    try {
+      await supabaseService.updateSettings(state.household.id, newSettings);
+      setState(prev => ({
+        ...prev,
+        settings: { ...prev.settings, ...newSettings }
+      }));
+    } catch (error) {
+      console.error('Failed to update settings:', error);
+      throw error;
+    }
+  };
+
+  const addIntake = async (householdUserId: string, volumeOz: number) => {
+    if (!state.household) return;
+
+    try {
+      const newEntry = await supabaseService.addIntakeEntry(
+        state.household.id,
+        householdUserId,
+        volumeOz
+      );
+
+      setState(prev => ({
+        ...prev,
+        entries: [newEntry, ...prev.entries]
+      }));
+    } catch (error) {
+      console.error('Failed to add intake:', error);
+      throw error;
+    }
+  };
+
+  const deleteEntry = async (id: string) => {
+    try {
+      await supabaseService.deleteIntakeEntry(id);
+      setState(prev => ({
+        ...prev,
+        entries: prev.entries.filter(e => e.id !== id)
+      }));
+    } catch (error) {
+      console.error('Failed to delete entry:', error);
+      throw error;
+    }
+  };
+
+  const updateUser = async (
+    userId: string,
+    updates: { displayName?: string; color?: string; bottleSizeOz?: number }
+  ) => {
+    try {
+      await supabaseService.updateHouseholdUser(userId, updates);
+
+      setState(prev => ({
+        ...prev,
+        users: prev.users.map(u =>
+          u.id === userId ? { ...u, ...updates } : u
+        ),
+        // Update currentUser if it's them
+        currentUser: prev.currentUser?.id === userId
+          ? { ...prev.currentUser, ...updates }
+          : prev.currentUser
+      }));
+    } catch (error) {
+      console.error('Failed to update user:', error);
+      throw error;
+    }
+  };
+
+  const deleteUserFromHousehold = async (userId: string) => {
+    if (!state.currentUser?.isOwner) {
+      throw new Error('Only the household owner can delete users');
+    }
+
+    if (userId === state.currentUser.id) {
+      throw new Error('Cannot delete yourself');
+    }
+
+    if (state.users.length <= 1) {
+      throw new Error('Cannot delete the last user');
+    }
+
+    try {
+      await supabaseService.deleteHouseholdUser(userId);
+      setState(prev => ({
+        ...prev,
+        users: prev.users.filter(u => u.id !== userId)
+      }));
+    } catch (error) {
+      console.error('Failed to delete user:', error);
+      throw error;
+    }
+  };
+
+  const resetData = async () => {
+    if (!state.household) return;
+
+    try {
+      await supabaseService.resetData(state.household.id);
+      setState(prev => ({
+        ...prev,
+        entries: [],
+        celebratedDates: []
+      }));
+    } catch (error) {
+      console.error('Failed to reset data:', error);
+      throw error;
+    }
+  };
+
+  const markDateCelebrated = async (date: string) => {
+    if (!state.household) return;
+
+    try {
+      await supabaseService.addCelebratedDate(state.household.id, date);
+      setState(prev => ({
+        ...prev,
+        celebratedDates: [...prev.celebratedDates, date]
+      }));
+    } catch (error) {
+      console.error('Failed to mark date celebrated:', error);
+      throw error;
+    }
   };
 
   const hasBeenCelebratedToday = (): boolean => {
@@ -157,29 +238,37 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return state.celebratedDates.includes(today);
   };
 
-  return (
-    <AppContext.Provider
-      value={{
-        state,
-        updateSettings,
-        addIntake,
-        deleteEntry,
-        updateEntry,
-        exportData,
-        importData,
-        resetData,
-        markDateCelebrated,
-        hasBeenCelebratedToday
-      }}
-    >
-      {children}
-    </AppContext.Provider>
-  );
+  const exportData = (): string => {
+    return JSON.stringify(state, null, 2);
+  };
+
+  const getInviteCode = (): string | null => {
+    return state.household?.inviteCode || null;
+  };
+
+  const value: AppContextType = {
+    state,
+    loading,
+    needsOnboarding,
+    updateSettings,
+    addIntake,
+    deleteEntry,
+    updateUser,
+    deleteUserFromHousehold,
+    exportData,
+    resetData,
+    markDateCelebrated,
+    hasBeenCelebratedToday,
+    refreshData,
+    getInviteCode
+  };
+
+  return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 }
 
 export function useApp() {
   const context = useContext(AppContext);
-  if (!context) {
+  if (context === undefined) {
     throw new Error('useApp must be used within AppProvider');
   }
   return context;

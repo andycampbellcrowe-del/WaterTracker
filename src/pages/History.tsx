@@ -9,22 +9,30 @@ import { TrendingUp, Award, Flame, Users, Trophy } from 'lucide-react';
 export default function History() {
   const { state } = useApp();
   const [selectedRange, setSelectedRange] = useState<DateRange>('week');
-  const { settings, entries } = state;
+  const { settings, entries, users } = state;
 
   const goalOz = settings.unit === 'l' ? litersToOz(settings.dailyGoalVolume) : settings.dailyGoalVolume;
 
-  const stats = useMemo(() => getStatsForRange(entries, selectedRange, goalOz), [entries, selectedRange, goalOz]);
-  const kpis = useMemo(() => calculateKPIs(stats), [stats]);
+  const stats = useMemo(() => getStatsForRange(entries, selectedRange, goalOz, users), [entries, selectedRange, goalOz, users]);
+  const kpis = useMemo(() => calculateKPIs(stats, users), [stats, users]);
 
-  const chartData = stats.map(stat => ({
-    date: new Date(stat.date).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric'
-    }),
-    Rachel: settings.unit === 'l' ? parseFloat(formatVolume(stat.rachelVolume, 'l', 2)) : stat.rachelVolume,
-    Andy: settings.unit === 'l' ? parseFloat(formatVolume(stat.andyVolume, 'l', 2)) : stat.andyVolume,
-    Goal: settings.unit === 'l' ? parseFloat(formatVolume(goalOz, 'l', 2)) : goalOz,
-  }));
+  const chartData = stats.map(stat => {
+    const data: any = {
+      date: new Date(stat.date).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric'
+      }),
+      Goal: settings.unit === 'l' ? parseFloat(formatVolume(goalOz, 'l', 2)) : goalOz,
+    };
+
+    // Add each user's volume dynamically
+    users.forEach(user => {
+      const volume = stat.userVolumes[user.id] || 0;
+      data[user.displayName] = settings.unit === 'l' ? parseFloat(formatVolume(volume, 'l', 2)) : volume;
+    });
+
+    return data;
+  });
 
   return (
     <div className="py-6 space-y-6">
@@ -78,8 +86,15 @@ export default function History() {
               }}
             />
             <Legend wrapperStyle={{ paddingTop: '20px' }} />
-            <Bar dataKey="Rachel" stackId="a" fill="#ec4899" radius={[0, 0, 0, 0]} />
-            <Bar dataKey="Andy" stackId="a" fill="#3b82f6" radius={[8, 8, 0, 0]} />
+            {users.map((user, index) => (
+              <Bar
+                key={user.id}
+                dataKey={user.displayName}
+                stackId="a"
+                fill={user.color}
+                radius={index === users.length - 1 ? [8, 8, 0, 0] : [0, 0, 0, 0]}
+              />
+            ))}
             <Line
               type="monotone"
               dataKey="Goal"
@@ -119,8 +134,11 @@ export default function History() {
             <span className="text-lg text-gray-600 ml-1">{getUnitLabel(settings.unit)}</span>
           </div>
           <div className="text-sm text-gray-600 mt-1 space-y-1">
-            <div>Rachel: {formatVolume(kpis.avgDailyRachel, settings.unit)} {getUnitLabel(settings.unit)}</div>
-            <div>Andy: {formatVolume(kpis.avgDailyAndy, settings.unit)} {getUnitLabel(settings.unit)}</div>
+            {users.map(user => (
+              <div key={user.id}>
+                {user.displayName}: {formatVolume(kpis.userAverages[user.id] || 0, settings.unit)} {getUnitLabel(settings.unit)}
+              </div>
+            ))}
           </div>
         </div>
 
@@ -153,40 +171,31 @@ export default function History() {
             <Users className="text-purple-600" size={24} aria-hidden="true" />
           </div>
           <div className="space-y-3">
-            <div>
-              <div className="flex justify-between text-sm mb-1">
-                <span className="text-gray-700 font-medium">Rachel</span>
-                <span className="text-gray-900 font-semibold">{kpis.rachelPercent.toFixed(1)}%</span>
-              </div>
-              <div className="w-full h-3 bg-gray-200 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-gradient-to-r from-pink-400 to-purple-400 transition-all duration-500"
-                  style={{ width: `${kpis.rachelPercent}%` }}
-                  role="progressbar"
-                  aria-valuenow={kpis.rachelPercent}
-                  aria-valuemin={0}
-                  aria-valuemax={100}
-                  aria-label={`Rachel contributed ${kpis.rachelPercent.toFixed(1)}%`}
-                />
-              </div>
-            </div>
-            <div>
-              <div className="flex justify-between text-sm mb-1">
-                <span className="text-gray-700 font-medium">Andy</span>
-                <span className="text-gray-900 font-semibold">{kpis.andyPercent.toFixed(1)}%</span>
-              </div>
-              <div className="w-full h-3 bg-gray-200 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-gradient-to-r from-blue-400 to-cyan-400 transition-all duration-500"
-                  style={{ width: `${kpis.andyPercent}%` }}
-                  role="progressbar"
-                  aria-valuenow={kpis.andyPercent}
-                  aria-valuemin={0}
-                  aria-valuemax={100}
-                  aria-label={`Andy contributed ${kpis.andyPercent.toFixed(1)}%`}
-                />
-              </div>
-            </div>
+            {users.map(user => {
+              const userPercent = kpis.userPercentages[user.id] || 0;
+              return (
+                <div key={user.id}>
+                  <div className="flex justify-between text-sm mb-1">
+                    <span className="text-gray-700 font-medium">{user.displayName}</span>
+                    <span className="text-gray-900 font-semibold">{userPercent.toFixed(1)}%</span>
+                  </div>
+                  <div className="w-full h-3 bg-gray-200 rounded-full overflow-hidden">
+                    <div
+                      className="h-full transition-all duration-500"
+                      style={{
+                        width: `${userPercent}%`,
+                        backgroundColor: user.color
+                      }}
+                      role="progressbar"
+                      aria-valuenow={userPercent}
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                      aria-label={`${user.displayName} contributed ${userPercent.toFixed(1)}%`}
+                    />
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>
