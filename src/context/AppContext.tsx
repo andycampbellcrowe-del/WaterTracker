@@ -29,6 +29,7 @@ interface AppContextType {
   deleteEntry: (id: string) => Promise<void>;
   updateUser: (userId: string, updates: { displayName?: string; color?: string; bottleSizeOz?: number }) => Promise<void>;
   deleteUserFromHousehold: (userId: string) => Promise<void>;
+  leaveHousehold: () => Promise<void>;
   exportData: () => string;
   resetData: () => Promise<void>;
   markDateCelebrated: (date: string) => Promise<void>;
@@ -202,6 +203,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const leaveHousehold = async () => {
+    try {
+      await supabaseService.leaveHousehold();
+      // Reset state to trigger onboarding
+      setState(defaultState);
+      setNeedsOnboarding(true);
+    } catch (error) {
+      console.error('Failed to leave household:', error);
+      throw error;
+    }
+  };
+
   const resetData = async () => {
     if (!state.household) return;
 
@@ -255,6 +268,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     deleteEntry,
     updateUser,
     deleteUserFromHousehold,
+    leaveHousehold,
     exportData,
     resetData,
     markDateCelebrated,

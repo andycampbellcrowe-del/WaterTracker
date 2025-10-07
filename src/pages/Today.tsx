@@ -224,16 +224,6 @@ export default function Today() {
               </button>
             </div>
 
-            <button
-              onClick={() => handleAddIntake(0.5)}
-              className="w-full py-4 px-6 text-white font-semibold rounded-2xl shadow-md transition-all hover:shadow-lg active:scale-95 min-h-[56px] flex items-center justify-center gap-2 opacity-80 hover:opacity-100"
-              style={{ backgroundColor: selectedUser.color }}
-              aria-label="Add half bottle"
-            >
-              <Plus size={24} aria-hidden="true" />
-              <span>+½ Bottle</span>
-            </button>
-
             <div className="flex gap-2">
               <input
                 type="number"

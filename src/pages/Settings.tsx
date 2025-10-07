@@ -12,7 +12,7 @@ const PRESET_COLORS = [
 const RESET_PASSWORD = 'AndyDrinksWater';
 
 export default function Settings() {
-  const { state, updateSettings, exportData, resetData, updateUser, deleteUserFromHousehold, getInviteCode } = useApp();
+  const { state, updateSettings, exportData, resetData, updateUser, deleteUserFromHousehold, leaveHousehold, getInviteCode } = useApp();
   const { signOut, user } = useAuth();
   const { settings, users, currentUser, household } = state;
 
@@ -20,6 +20,7 @@ export default function Settings() {
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [resetPassword, setResetPassword] = useState('');
   const [copiedCode, setCopiedCode] = useState(false);
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
 
   // User editing (only for yourself or if you're owner)
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
@@ -52,6 +53,16 @@ export default function Settings() {
     } else {
       alert('Incorrect password!');
       setResetPassword('');
+    }
+  };
+
+  const handleLeaveHousehold = async () => {
+    try {
+      await leaveHousehold();
+      setShowLeaveConfirm(false);
+    } catch (error) {
+      console.error('Failed to leave household:', error);
+      alert('Failed to leave household. Please try again.');
     }
   };
 
@@ -560,13 +571,48 @@ export default function Settings() {
             <p className="text-sm font-medium text-gray-900">{user?.email}</p>
           </div>
 
-          <button
-            onClick={handleSignOut}
-            className="w-full py-4 px-6 bg-gradient-to-r from-gray-500 to-gray-600 hover:from-gray-600 hover:to-gray-700 text-white font-semibold rounded-2xl shadow-md transition-all hover:shadow-lg active:scale-95 flex items-center justify-center gap-2"
-          >
-            <LogOut size={24} />
-            <span>Sign Out</span>
-          </button>
+          {!showLeaveConfirm ? (
+            <>
+              <button
+                onClick={() => setShowLeaveConfirm(true)}
+                className="w-full py-4 px-6 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-semibold rounded-2xl shadow-md transition-all hover:shadow-lg active:scale-95 flex items-center justify-center gap-2"
+              >
+                <LogOut size={24} />
+                <span>Leave Household</span>
+              </button>
+
+              <button
+                onClick={handleSignOut}
+                className="w-full py-4 px-6 bg-gradient-to-r from-gray-500 to-gray-600 hover:from-gray-600 hover:to-gray-700 text-white font-semibold rounded-2xl shadow-md transition-all hover:shadow-lg active:scale-95 flex items-center justify-center gap-2"
+              >
+                <LogOut size={24} />
+                <span>Sign Out</span>
+              </button>
+            </>
+          ) : (
+            <div className="space-y-3">
+              <div className="p-4 bg-orange-50 border-2 border-orange-200 rounded-2xl">
+                <p className="text-sm text-orange-800 font-medium mb-2">⚠️ Leave Household?</p>
+                <p className="text-sm text-orange-700">
+                  You will be removed from "{household?.name}" and can join a different household.
+                </p>
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowLeaveConfirm(false)}
+                  className="flex-1 py-3 px-4 bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold rounded-2xl transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleLeaveHousehold}
+                  className="flex-1 py-3 px-4 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-semibold rounded-2xl transition-all"
+                >
+                  Leave
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

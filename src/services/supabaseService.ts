@@ -393,6 +393,32 @@ export async function deleteHouseholdUser(userId: string) {
   if (error) throw error;
 }
 
+/**
+ * Leave current household (deletes current user's household_user record)
+ * This allows the user to join a different household
+ */
+export async function leaveHousehold() {
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    throw new Error('Not authenticated');
+  }
+
+  // Get current household user
+  const currentUser = await getCurrentHouseholdUser();
+  if (!currentUser) {
+    throw new Error('Not in a household');
+  }
+
+  // Delete the household_user record
+  const { error } = await supabase
+    .from('household_users')
+    .delete()
+    .eq('auth_user_id', user.id);
+
+  if (error) throw error;
+}
+
 // ============================================================
 // SETTINGS
 // ============================================================
