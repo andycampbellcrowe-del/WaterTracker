@@ -109,8 +109,7 @@ export default function DualProgressRing({
         {/* Individual progress (main emphasis) */}
         {users.length <= 3 ? (
           <div className="flex items-center gap-3 mb-1 flex-wrap justify-center">
-            {users.map((userStat, index) => {
-              const isComplete = userStat.percent >= 100;
+            {users.map((userStat) => {
               return (
                 <div key={userStat.user.id} className="text-center">
                   <div

@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
-import { formatVolume, getUnitLabel } from '../utils/conversions';
-import { Download, Save, LogOut, Copy, Key, Trash2, Users as UsersIcon } from 'lucide-react';
+import { getUnitLabel } from '../utils/conversions';
+import { Download, Save, LogOut, Copy, Trash2, Users as UsersIcon } from 'lucide-react';
 
 const PRESET_COLORS = [
   '#ec4899', '#3b82f6', '#10b981', '#f59e0b',

@@ -1,4 +1,4 @@
-import { AppSettings, IntakeEntry, HouseholdUser, DayStats, KPIData } from '../types';
+import { IntakeEntry, HouseholdUser, DayStats, KPIData } from '../types';
 
 export function getLocalDateString(date: Date = new Date()): string {
   const year = date.getFullYear();

@@ -25,7 +25,7 @@ export function generateDemoData(): IntakeEntry[] {
 
       entries.push({
         id: `demo-rachel-${dayOffset}-${i}`,
-        user: 'rachel',
+        householdUserId: 'rachel',
         volumeOz,
         timestamp: timestamp.toISOString()
       });
@@ -42,7 +42,7 @@ export function generateDemoData(): IntakeEntry[] {
 
       entries.push({
         id: `demo-andy-${dayOffset}-${i}`,
-        user: 'andy',
+        householdUserId: 'andy',
         volumeOz,
         timestamp: timestamp.toISOString()
       });

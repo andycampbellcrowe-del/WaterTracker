@@ -1,10 +1,8 @@
 import { useState } from 'react';
-import { useAuth } from '../context/AuthContext';
-import * as supabaseService from '../services/supabaseService';
 import { Droplet, Plus, X } from 'lucide-react';
 
 interface OnboardingProps {
-  profileId: string;
+  profileId?: string; // Optional since no longer used
   onComplete: () => void;
 }
 
@@ -19,7 +17,7 @@ const PRESET_COLORS = [
   '#f97316', // orange
 ];
 
-export default function Onboarding({ profileId, onComplete }: OnboardingProps) {
+export default function Onboarding({ onComplete }: OnboardingProps) {
   const [users, setUsers] = useState<Array<{ name: string; color: string; bottleSize: string }>>([
     { name: '', color: PRESET_COLORS[0], bottleSize: '16' },
   ]);
@@ -60,16 +58,9 @@ export default function Onboarding({ profileId, onComplete }: OnboardingProps) {
 
     setLoading(true);
     try {
-      // Create household users
-      for (const user of users) {
-        await supabaseService.addHouseholdUser(
-          profileId,
-          user.name.trim(),
-          user.color,
-          parseFloat(user.bottleSize)
-        );
-      }
-
+      // Note: This old onboarding is no longer used
+      // The multi-account onboarding (OnboardingMultiAccount.tsx) is used instead
+      console.warn('Old onboarding called - should use OnboardingMultiAccount instead');
       onComplete();
     } catch (err: any) {
       setError(err.message || 'Failed to create users');

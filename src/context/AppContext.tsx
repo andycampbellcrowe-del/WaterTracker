@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { AppState, AppSettings, IntakeEntry, HouseholdUser, Household } from '../types';
+import { AppState, AppSettings } from '../types';
 import { getLocalDateString } from '../utils/calculations';
 import { useAuth } from './AuthContext';
 import * as supabaseService from '../services/supabaseService';

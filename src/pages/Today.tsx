@@ -153,7 +153,7 @@ export default function Today() {
 
         {/* Stacked Progress Bar */}
         <div className="w-full h-8 bg-gray-200 rounded-full overflow-hidden flex">
-          {userStats.map((stat, index) => {
+          {userStats.map((stat) => {
             const widthPercent = (stat.total / goalOz) * 100;
             return (
               <div
