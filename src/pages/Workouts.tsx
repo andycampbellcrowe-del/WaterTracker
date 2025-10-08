@@ -11,6 +11,8 @@ export default function Workouts() {
   const [durationHours, setDurationHours] = useState(0.25);
   const [notes, setNotes] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [entryToDelete, setEntryToDelete] = useState<string | null>(null);
 
   const { users, currentUser, workoutEntries } = state;
 
@@ -88,10 +90,17 @@ export default function Workouts() {
     }
   };
 
-  const handleDeleteEntry = async (entryId: string) => {
-    if (!confirm('Delete this workout entry?')) return;
+  const handleDeleteEntry = (entryId: string) => {
+    setEntryToDelete(entryId);
+    setShowDeleteConfirm(true);
+  };
+
+  const confirmDeleteEntry = async () => {
+    if (!entryToDelete) return;
     try {
-      await deleteWorkoutEntry(entryId);
+      await deleteWorkoutEntry(entryToDelete);
+      setShowDeleteConfirm(false);
+      setEntryToDelete(null);
     } catch (error) {
       alert('Failed to delete entry. Please try again.');
     }
@@ -372,7 +381,8 @@ export default function Workouts() {
                   </div>
                   <button
                     onClick={() => handleDeleteEntry(entry.id)}
-                    className="text-red-500 hover:text-red-700 p-2"
+                    className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-all active:scale-95"
+                    aria-label="Delete this workout"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
@@ -382,6 +392,76 @@ export default function Workouts() {
           </div>
         )}
       </section>
+
+      {/* Delete Confirmation Dialog */}
+      {showDeleteConfirm && entryToDelete && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-3xl shadow-2xl p-6 max-w-sm w-full">
+            <h3 className="text-xl font-bold text-gray-900 mb-3">Delete Workout?</h3>
+            <div className="mb-6">
+              <p className="text-gray-600 mb-3">
+                This will permanently delete this workout:
+              </p>
+              {(() => {
+                const entry = thisWeekEntries.find(e => e.id === entryToDelete);
+                const user = entry ? users.find(u => u.id === entry.householdUserId) : null;
+                if (!entry || !user) return null;
+
+                return (
+                  <div className="p-4 bg-gray-50 rounded-2xl border-2 border-gray-200">
+                    <div className="flex items-center gap-2 mb-2">
+                      {entry.workoutType === 'cardio' ? (
+                        <Heart className="w-5 h-5 text-red-500" />
+                      ) : (
+                        <Dumbbell className="w-5 h-5 text-blue-500" />
+                      )}
+                      <span className="font-semibold text-gray-900 capitalize">
+                        {entry.workoutType}
+                      </span>
+                    </div>
+                    <p className="text-sm text-gray-600">
+                      Duration: {formatDuration(entry.durationHours)}
+                    </p>
+                    <p className="text-sm text-gray-600">
+                      By: {user.displayName}
+                    </p>
+                    {entry.notes && (
+                      <p className="text-sm text-gray-500 mt-2 italic">"{entry.notes}"</p>
+                    )}
+                    <p className="text-xs text-gray-400 mt-2">
+                      {new Date(entry.timestamp).toLocaleDateString('en-US', {
+                        weekday: 'short',
+                        month: 'short',
+                        day: 'numeric',
+                        hour: 'numeric',
+                        minute: '2-digit'
+                      })}
+                    </p>
+                  </div>
+                );
+              })()}
+              <p className="text-sm text-gray-500 mt-3">This action cannot be undone.</p>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setShowDeleteConfirm(false);
+                  setEntryToDelete(null);
+                }}
+                className="flex-1 py-3 bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold rounded-2xl transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDeleteEntry}
+                className="flex-1 py-3 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white font-semibold rounded-2xl transition-all"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

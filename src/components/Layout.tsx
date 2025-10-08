@@ -1,5 +1,5 @@
 import { NavLink, Outlet } from 'react-router-dom';
-import { Home, Users, BarChart3, Settings } from 'lucide-react';
+import { Home, Users, Dumbbell, BarChart3, Settings } from 'lucide-react';
 
 export default function Layout() {
   return (
@@ -50,6 +50,25 @@ export default function Layout() {
                 <>
                   <Users size={24} strokeWidth={isActive ? 2.5 : 2} aria-hidden="true" />
                   <span className="text-xs font-medium">Household</span>
+                </>
+              )}
+            </NavLink>
+
+            <NavLink
+              to="/workouts"
+              className={({ isActive }) =>
+                `flex flex-col items-center justify-center gap-1 px-6 py-2 rounded-lg transition-all min-w-[70px] min-h-[60px] ${
+                  isActive
+                    ? 'text-primary-600 bg-primary-50'
+                    : 'text-gray-600 hover:text-primary-500 hover:bg-gray-50'
+                }`
+              }
+              aria-label="Workouts"
+            >
+              {({ isActive }) => (
+                <>
+                  <Dumbbell size={24} strokeWidth={isActive ? 2.5 : 2} aria-hidden="true" />
+                  <span className="text-xs font-medium">Workouts</span>
                 </>
               )}
             </NavLink>

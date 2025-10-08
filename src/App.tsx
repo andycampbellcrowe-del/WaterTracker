@@ -5,6 +5,7 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import Layout from './components/Layout';
 import Today from './pages/Today';
 import Household from './pages/Household';
+import Workouts from './pages/Workouts';
 import History from './pages/History';
 import Settings from './pages/Settings';
 import Login from './pages/Login';
@@ -41,6 +42,7 @@ function AppContent() {
         <Route path="/" element={<Layout />}>
           <Route index element={<Today />} />
           <Route path="household" element={<Household />} />
+          <Route path="workouts" element={<Workouts />} />
           <Route path="history" element={<History />} />
           <Route path="settings" element={<Settings />} />
         </Route>
