@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { getTodayTotal, getTodayByUserId, getProgressPercent, getLocalDateString } from '../utils/calculations';
 import { formatVolume, getUnitLabel, litersToOz } from '../utils/conversions';
-import { getWeeklyWorkoutStats, getCombinedWorkoutPercent, getWeekStart } from '../utils/workoutCalculations';
+import { getWeeklyWorkoutStats } from '../utils/workoutCalculations';
 import PersonalMetricsCard from '../components/PersonalMetricsCard';
 import Celebration from '../components/Celebration';
 import { Droplet, Plus, Minus, Dumbbell, Heart } from 'lucide-react';
@@ -38,15 +38,12 @@ export default function Today() {
 
   // Combined progress: percentage of users who have met their individual goals
   const usersWhoMetGoal = userStats.filter(stat => stat.total >= goalOz).length;
-  const progressPercent = users.length > 0 ? (usersWhoMetGoal / users.length) * 100 : 0;
 
   const selectedUser = users.find(u => u.id === selectedUserId);
   const bottleSize = selectedUser?.bottleSizeOz || 16;
 
   // Workout calculations
   const workoutStats = getWeeklyWorkoutStats(workoutEntries, users);
-  const combinedWorkoutPercent = getCombinedWorkoutPercent(workoutEntries, users);
-  const weekStart = getWeekStart();
 
   // Check for goal completion and trigger celebration (all users must meet their individual goals)
   const allUsersMetGoal = users.length > 0 && userStats.every(stat => stat.total >= goalOz);
@@ -96,9 +93,6 @@ export default function Today() {
       alert('Failed to add workout. Please try again.');
     }
   };
-
-  // Goal is met when ALL users meet their individual goals
-  const goalMet = allUsersMetGoal;
 
   if (users.length === 0) {
     return (

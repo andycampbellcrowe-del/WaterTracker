@@ -23,10 +23,6 @@ export default function WorkoutProgressRing({
   // Calculate totals for summary
   const totalCardioHours = users.reduce((sum, u) => sum + u.cardioHours, 0);
   const totalStrengthHours = users.reduce((sum, u) => sum + u.strengthHours, 0);
-  const totalGoalCardioHours = users.reduce((sum, u) => sum + u.user.weeklyCardioGoalHours, 0);
-  const totalGoalStrengthHours = users.reduce((sum, u) => sum + u.user.weeklyStrengthGoalHours, 0);
-  const totalHours = totalCardioHours + totalStrengthHours;
-  const totalGoalHours = totalGoalCardioHours + totalGoalStrengthHours;
 
   return (
     <div className="space-y-4 w-full">
