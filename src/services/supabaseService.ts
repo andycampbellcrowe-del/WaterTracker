@@ -1,5 +1,5 @@
 import { supabase } from '../lib/supabase';
-import type { AppSettings, IntakeEntry, HouseholdUser, Household, HouseholdInvitation } from '../types';
+import type { AppSettings, IntakeEntry, HouseholdUser, Household, HouseholdInvitation, WorkoutEntry, WorkoutType } from '../types';
 
 // ============================================================
 // AUTHENTICATION & SETUP
@@ -35,6 +35,8 @@ export async function getCurrentHouseholdUser(): Promise<HouseholdUser | null> {
     color: data.color,
     bottleSizeOz: Number(data.bottle_size_oz),
     isOwner: data.is_owner,
+    weeklyCardioGoalHours: Number(data.weekly_cardio_goal_hours) || 0,
+    weeklyStrengthGoalHours: Number(data.weekly_strength_goal_hours) || 0,
     createdAt: data.created_at,
     updatedAt: data.updated_at
   };
@@ -126,6 +128,8 @@ export async function createHousehold(
       color: householdUser.color,
       bottleSizeOz: Number(householdUser.bottle_size_oz),
       isOwner: householdUser.is_owner,
+      weeklyCardioGoalHours: Number(householdUser.weekly_cardio_goal_hours) || 0,
+      weeklyStrengthGoalHours: Number(householdUser.weekly_strength_goal_hours) || 0,
       createdAt: householdUser.created_at,
       updatedAt: householdUser.updated_at
     }
@@ -327,6 +331,8 @@ export async function acceptInvitation(
     color: householdUser.color,
     bottleSizeOz: Number(householdUser.bottle_size_oz),
     isOwner: householdUser.is_owner,
+    weeklyCardioGoalHours: Number(householdUser.weekly_cardio_goal_hours) || 0,
+    weeklyStrengthGoalHours: Number(householdUser.weekly_strength_goal_hours) || 0,
     createdAt: householdUser.created_at,
     updatedAt: householdUser.updated_at
   };
@@ -356,6 +362,8 @@ export async function getHouseholdUsers(householdId: string): Promise<HouseholdU
     color: user.color,
     bottleSizeOz: Number(user.bottle_size_oz),
     isOwner: user.is_owner,
+    weeklyCardioGoalHours: Number(user.weekly_cardio_goal_hours) || 0,
+    weeklyStrengthGoalHours: Number(user.weekly_strength_goal_hours) || 0,
     createdAt: user.created_at,
     updatedAt: user.updated_at
   }));
@@ -562,6 +570,113 @@ export async function addCelebratedDate(householdId: string, date: string) {
 }
 
 // ============================================================
+// WORKOUT ENTRIES
+// ============================================================
+
+/**
+ * Get all workout entries for household
+ */
+export async function getWorkoutEntries(householdId: string): Promise<WorkoutEntry[]> {
+  const { data, error } = await supabase
+    .from('workout_entries')
+    .select('*')
+    .eq('household_id', householdId)
+    .order('timestamp', { ascending: false });
+
+  if (error) throw error;
+
+  return (data || []).map(entry => ({
+    id: entry.id,
+    householdId: entry.household_id,
+    householdUserId: entry.household_user_id,
+    workoutType: entry.workout_type as WorkoutType,
+    durationHours: Number(entry.duration_hours),
+    notes: entry.notes,
+    timestamp: entry.timestamp,
+    createdAt: entry.created_at
+  }));
+}
+
+/**
+ * Add workout entry
+ */
+export async function addWorkoutEntry(
+  householdId: string,
+  householdUserId: string,
+  workoutType: WorkoutType,
+  durationHours: number,
+  notes?: string,
+  timestamp?: Date
+): Promise<WorkoutEntry> {
+  // Validate 0.25 hour increment
+  if (durationHours <= 0 || (durationHours * 4) % 1 !== 0) {
+    throw new Error('Duration must be a positive multiple of 0.25 hours');
+  }
+
+  const { data, error } = await supabase
+    .from('workout_entries')
+    .insert({
+      household_id: householdId,
+      household_user_id: householdUserId,
+      workout_type: workoutType,
+      duration_hours: durationHours,
+      notes: notes || null,
+      timestamp: timestamp ? timestamp.toISOString() : new Date().toISOString()
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+
+  return {
+    id: data.id,
+    householdId: data.household_id,
+    householdUserId: data.household_user_id,
+    workoutType: data.workout_type as WorkoutType,
+    durationHours: Number(data.duration_hours),
+    notes: data.notes,
+    timestamp: data.timestamp,
+    createdAt: data.created_at
+  };
+}
+
+/**
+ * Delete workout entry
+ */
+export async function deleteWorkoutEntry(entryId: string) {
+  const { error } = await supabase
+    .from('workout_entries')
+    .delete()
+    .eq('id', entryId);
+
+  if (error) throw error;
+}
+
+/**
+ * Update user's workout goals
+ */
+export async function updateUserWorkoutGoals(
+  userId: string,
+  cardioGoalHours: number,
+  strengthGoalHours: number
+) {
+  // Validate 0.25 hour increments
+  if ((cardioGoalHours * 4) % 1 !== 0 || (strengthGoalHours * 4) % 1 !== 0) {
+    throw new Error('Goals must be in 0.25 hour increments');
+  }
+
+  const { error } = await supabase
+    .from('household_users')
+    .update({
+      weekly_cardio_goal_hours: cardioGoalHours,
+      weekly_strength_goal_hours: strengthGoalHours
+    })
+    .eq('id', userId);
+
+  if (error) throw error;
+}
+
+// ============================================================
 // RESET DATA
 // ============================================================
 
@@ -578,6 +693,12 @@ export async function resetData(householdId: string) {
   // Delete all celebrated dates
   await supabase
     .from('celebrated_dates')
+    .delete()
+    .eq('household_id', householdId);
+
+  // Delete all workout entries
+  await supabase
+    .from('workout_entries')
     .delete()
     .eq('household_id', householdId);
 }

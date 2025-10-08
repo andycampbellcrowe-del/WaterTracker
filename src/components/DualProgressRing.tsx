@@ -17,89 +17,55 @@ export default function DualProgressRing({
   users,
   size = 240,
 }: DualProgressRingProps) {
-  const innerStrokeWidth = 18;  // Thick for individual progress
-  const outerStrokeWidth = 10;  // Thinner for group total
-  const gap = 12;
+  const strokeWidth = 16;
+  const gap = 8;
 
-  // Inner ring for individual progress (thick)
-  const innerRadius = (size - innerStrokeWidth) / 2 - outerStrokeWidth - gap;
-  const innerCircumference = 2 * Math.PI * innerRadius;
+  // Calculate ring positions - each user gets their own complete ring
+  const rings = users.map((_, index) => {
+    const offset = index * (strokeWidth + gap);
+    const radius = (size / 2) - strokeWidth / 2 - offset;
+    const circumference = 2 * Math.PI * radius;
+    return { radius, circumference };
+  });
 
-  // Outer ring for total progress (thinner)
-  const outerRadius = (size - outerStrokeWidth) / 2;
-  const outerCircumference = 2 * Math.PI * outerRadius;
-
-  // Calculate offsets
-  const totalGoalPercent = Math.min(totalPercent, 100);
-  const totalOffset = outerCircumference - (totalGoalPercent / 100) * outerCircumference;
-
-  // Determine completion states
+  // Goal is complete when ALL users reach 100%
   const totalComplete = totalPercent >= 100;
-
-  // Calculate segments for each user
-  const segmentSize = innerCircumference / users.length;
 
   return (
     <div className="relative inline-flex items-center justify-center">
       <svg width={size} height={size} className="transform -rotate-90">
-        {/* Outer ring background (group total) */}
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={outerRadius}
-          fill="none"
-          stroke="#e5e7eb"
-          strokeWidth={outerStrokeWidth}
-        />
-
-        {/* Group total progress (outer ring, thinner, grey) */}
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={outerRadius}
-          fill="none"
-          stroke="#6b7280"
-          strokeWidth={outerStrokeWidth}
-          strokeDasharray={outerCircumference}
-          strokeDashoffset={totalOffset}
-          strokeLinecap="round"
-          className="transition-all duration-700 ease-out"
-        />
-
-        {/* Inner ring background (individual progress) */}
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={innerRadius}
-          fill="none"
-          stroke="#f1f5f9"
-          strokeWidth={innerStrokeWidth}
-        />
-
-        {/* Individual user progress segments */}
+        {/* Render each user's ring */}
         {users.map((userStat, index) => {
+          const { radius, circumference } = rings[index];
           const userPercent = Math.min(userStat.percent, 100);
-          const startAngle = (index / users.length) * 360;
-          const userOffset = innerCircumference - (userPercent / 100) * segmentSize;
+          const progressOffset = circumference - (userPercent / 100) * circumference;
 
           return (
-            <circle
-              key={userStat.user.id}
-              cx={size / 2}
-              cy={size / 2}
-              r={innerRadius}
-              fill="none"
-              stroke={userStat.user.color}
-              strokeWidth={innerStrokeWidth}
-              strokeDasharray={`${segmentSize} ${innerCircumference - segmentSize}`}
-              strokeDashoffset={userOffset - (index * segmentSize)}
-              strokeLinecap="round"
-              className="transition-all duration-700 ease-out"
-              style={{
-                transformOrigin: 'center',
-                transform: `rotate(${startAngle}deg)`
-              }}
-            />
+            <g key={userStat.user.id}>
+              {/* Background ring */}
+              <circle
+                cx={size / 2}
+                cy={size / 2}
+                r={radius}
+                fill="none"
+                stroke="#e5e7eb"
+                strokeWidth={strokeWidth}
+              />
+
+              {/* Progress ring */}
+              <circle
+                cx={size / 2}
+                cy={size / 2}
+                r={radius}
+                fill="none"
+                stroke={userStat.user.color}
+                strokeWidth={strokeWidth}
+                strokeDasharray={circumference}
+                strokeDashoffset={progressOffset}
+                strokeLinecap="round"
+                className="transition-all duration-700 ease-out"
+              />
+            </g>
           );
         })}
       </svg>
@@ -140,14 +106,11 @@ export default function DualProgressRing({
           </div>
         )}
 
-        {/* Total progress (smaller) */}
+        {/* Combined progress (smaller) */}
         <div className="mt-2 px-3 py-1 bg-gray-100 rounded-full">
           <div className="flex items-center gap-1.5">
-            <span className="text-xs text-gray-500">Combined:</span>
-            <span className={`text-sm font-semibold transition-colors duration-500 ${
-              totalComplete ? 'text-green-600' : 'text-gray-700'
-            }`}>
-              {Math.round(totalGoalPercent)}%
+            <span className="text-xs text-gray-500">
+              {users.filter(u => u.percent >= 100).length} of {users.length} complete
             </span>
           </div>
         </div>
@@ -156,15 +119,15 @@ export default function DualProgressRing({
       {/* Individual completion indicators */}
       {users.map((userStat, index) => {
         if (userStat.percent < 100) return null;
-        const angle = ((index / users.length) * 360) - 90; // -90 to start from top
-        const radius = size / 2 - 20;
-        const x = size / 2 + radius * Math.cos((angle * Math.PI) / 180);
-        const y = size / 2 + radius * Math.sin((angle * Math.PI) / 180);
+        const { radius } = rings[index];
+        // Position at top of each ring
+        const x = size / 2;
+        const y = size / 2 - radius;
 
         return (
           <div
             key={userStat.user.id}
-            className="absolute w-6 h-6 rounded-full flex items-center justify-center shadow-lg"
+            className="absolute w-8 h-8 rounded-full flex items-center justify-center shadow-lg border-2 border-white"
             style={{
               backgroundColor: userStat.user.color,
               left: `${x}px`,
@@ -172,15 +135,15 @@ export default function DualProgressRing({
               transform: 'translate(-50%, -50%)'
             }}
           >
-            <span className="text-white text-xs font-bold">✓</span>
+            <span className="text-white text-sm font-bold">✓</span>
           </div>
         );
       })}
 
-      {/* Overall goal completion indicator */}
+      {/* Overall goal completion indicator (all users must complete) */}
       {totalComplete && (
         <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 px-3 py-1 bg-green-500 text-white text-xs font-bold rounded-full shadow-lg animate-bounce">
-          Goal Met! 🎉
+          Everyone Met Their Goal! 🎉
         </div>
       )}
     </div>

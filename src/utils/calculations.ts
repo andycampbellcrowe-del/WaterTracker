@@ -119,7 +119,7 @@ export function calculateKPIs(stats: DayStats[], users: HouseholdUser[]): KPIDat
 
   users.forEach(user => {
     const userTotal = stats.reduce((sum, s) => sum + (s.userVolumes[user.id] || 0), 0);
-    userPercentages[user.id] = totalUserVolume > 0 ? (userTotal / totalUserVolume) * 100 : 100 / users.length;
+    userPercentages[user.id] = totalUserVolume > 0 ? (userTotal / totalUserVolume) * 100 : 0;
   });
 
   // Calculate streaks

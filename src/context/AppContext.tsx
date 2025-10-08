@@ -17,6 +17,7 @@ const defaultState: AppState = {
   settings: defaultSettings,
   users: [],
   entries: [],
+  workoutEntries: [],
   celebratedDates: []
 };
 
@@ -27,6 +28,9 @@ interface AppContextType {
   updateSettings: (settings: Partial<AppSettings>) => Promise<void>;
   addIntake: (householdUserId: string, volumeOz: number) => Promise<void>;
   deleteEntry: (id: string) => Promise<void>;
+  addWorkout: (householdUserId: string, workoutType: 'cardio' | 'strength', durationHours: number, notes?: string) => Promise<void>;
+  deleteWorkoutEntry: (id: string) => Promise<void>;
+  updateUserWorkoutGoals: (userId: string, cardioGoalHours: number, strengthGoalHours: number) => Promise<void>;
   updateUser: (userId: string, updates: { displayName?: string; color?: string; bottleSizeOz?: number }) => Promise<void>;
   deleteUserFromHousehold: (userId: string) => Promise<void>;
   leaveHousehold: () => Promise<void>;
@@ -77,11 +81,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       console.log('Household user found:', currentHouseholdUser);
       setNeedsOnboarding(false);
 
-      const [household, settings, users, entries, celebratedDates] = await Promise.all([
+      const [household, settings, users, entries, workoutEntries, celebratedDates] = await Promise.all([
         supabaseService.getHousehold(currentHouseholdUser.householdId),
         supabaseService.getSettings(currentHouseholdUser.householdId),
         supabaseService.getHouseholdUsers(currentHouseholdUser.householdId),
         supabaseService.getIntakeEntries(currentHouseholdUser.householdId),
+        supabaseService.getWorkoutEntries(currentHouseholdUser.householdId),
         supabaseService.getCelebratedDates(currentHouseholdUser.householdId)
       ]);
 
@@ -91,6 +96,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         settings,
         users,
         entries,
+        workoutEntries,
         celebratedDates
       });
     } catch (error) {
@@ -215,6 +221,72 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const addWorkout = async (
+    householdUserId: string,
+    workoutType: 'cardio' | 'strength',
+    durationHours: number,
+    notes?: string
+  ) => {
+    if (!state.household) return;
+
+    try {
+      const newEntry = await supabaseService.addWorkoutEntry(
+        state.household.id,
+        householdUserId,
+        workoutType,
+        durationHours,
+        notes
+      );
+
+      setState(prev => ({
+        ...prev,
+        workoutEntries: [newEntry, ...prev.workoutEntries]
+      }));
+    } catch (error) {
+      console.error('Failed to add workout:', error);
+      throw error;
+    }
+  };
+
+  const deleteWorkoutEntry = async (id: string) => {
+    try {
+      await supabaseService.deleteWorkoutEntry(id);
+      setState(prev => ({
+        ...prev,
+        workoutEntries: prev.workoutEntries.filter(e => e.id !== id)
+      }));
+    } catch (error) {
+      console.error('Failed to delete workout entry:', error);
+      throw error;
+    }
+  };
+
+  const updateUserWorkoutGoals = async (
+    userId: string,
+    cardioGoalHours: number,
+    strengthGoalHours: number
+  ) => {
+    try {
+      await supabaseService.updateUserWorkoutGoals(userId, cardioGoalHours, strengthGoalHours);
+
+      setState(prev => ({
+        ...prev,
+        users: prev.users.map(u =>
+          u.id === userId
+            ? { ...u, weeklyCardioGoalHours: cardioGoalHours, weeklyStrengthGoalHours: strengthGoalHours }
+            : u
+        ),
+        // Update currentUser if it's them
+        currentUser: prev.currentUser?.id === userId
+          ? { ...prev.currentUser, weeklyCardioGoalHours: cardioGoalHours, weeklyStrengthGoalHours: strengthGoalHours }
+          : prev.currentUser
+      }));
+    } catch (error) {
+      console.error('Failed to update workout goals:', error);
+      throw error;
+    }
+  };
+
   const resetData = async () => {
     if (!state.household) return;
 
@@ -223,6 +295,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setState(prev => ({
         ...prev,
         entries: [],
+        workoutEntries: [],
         celebratedDates: []
       }));
     } catch (error) {
@@ -266,6 +339,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     updateSettings,
     addIntake,
     deleteEntry,
+    addWorkout,
+    deleteWorkoutEntry,
+    updateUserWorkoutGoals,
     updateUser,
     deleteUserFromHousehold,
     leaveHousehold,

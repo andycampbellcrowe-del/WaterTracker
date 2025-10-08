@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
 import { getUnitLabel } from '../utils/conversions';
-import { Download, Save, LogOut, Copy, Trash2, Users as UsersIcon } from 'lucide-react';
+import { Download, Save, LogOut, Copy, Trash2, Users as UsersIcon, Dumbbell } from 'lucide-react';
 
 const PRESET_COLORS = [
   '#ec4899', '#3b82f6', '#10b981', '#f59e0b',
@@ -12,7 +12,7 @@ const PRESET_COLORS = [
 const RESET_PASSWORD = 'AndyDrinksWater';
 
 export default function Settings() {
-  const { state, updateSettings, exportData, resetData, updateUser, deleteUserFromHousehold, leaveHousehold, getInviteCode } = useApp();
+  const { state, updateSettings, exportData, resetData, updateUser, deleteUserFromHousehold, leaveHousehold, getInviteCode, updateUserWorkoutGoals } = useApp();
   const { signOut, user } = useAuth();
   const { settings, users, currentUser, household } = state;
 
@@ -25,6 +25,10 @@ export default function Settings() {
   // User editing (only for yourself or if you're owner)
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState({ displayName: '', color: '', bottleSizeOz: '' });
+
+  // Workout goals editing (per user)
+  const [editingWorkoutGoalsUserId, setEditingWorkoutGoalsUserId] = useState<string | null>(null);
+  const [workoutGoalsForm, setWorkoutGoalsForm] = useState({ cardioGoalHours: 0, strengthGoalHours: 0 });
 
   const inviteCode = getInviteCode();
   const isOwner = currentUser?.isOwner || false;
@@ -196,6 +200,144 @@ export default function Settings() {
           )}
         </div>
       )}
+
+      {/* Workout Goals - All Users */}
+      <div className="bg-white rounded-3xl shadow-lg p-6">
+        <div className="flex items-center gap-3 mb-4">
+          <Dumbbell className="text-blue-600" size={24} />
+          <h2 className="text-xl font-semibold text-gray-900">Weekly Workout Goals</h2>
+        </div>
+
+        <div className="space-y-4">
+          {users.map(user => {
+            const isEditingSelf = editingWorkoutGoalsUserId === user.id;
+            const canEdit = user.id === currentUser?.id || isOwner;
+
+            return (
+              <div
+                key={user.id}
+                className="border-2 rounded-2xl p-4"
+                style={{ borderColor: `${user.color}40` }}
+              >
+                <div className="flex items-center gap-3 mb-3">
+                  <div
+                    className="w-8 h-8 rounded-full"
+                    style={{ backgroundColor: user.color }}
+                  />
+                  <div className="flex-1">
+                    <div className="font-semibold text-gray-900">{user.displayName}</div>
+                    {user.id === currentUser?.id && (
+                      <div className="text-xs text-gray-500">You</div>
+                    )}
+                  </div>
+                </div>
+
+                {isEditingSelf ? (
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        ❤️ Cardio Goal (hours per week)
+                      </label>
+                      <input
+                        type="number"
+                        value={workoutGoalsForm.cardioGoalHours}
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value) || 0;
+                          setWorkoutGoalsForm({ ...workoutGoalsForm, cardioGoalHours: Math.round(val * 4) / 4 });
+                        }}
+                        min="0"
+                        step="0.25"
+                        className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="e.g., 2.5"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">In 0.25 hour increments</p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        💪 Strength Goal (hours per week)
+                      </label>
+                      <input
+                        type="number"
+                        value={workoutGoalsForm.strengthGoalHours}
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value) || 0;
+                          setWorkoutGoalsForm({ ...workoutGoalsForm, strengthGoalHours: Math.round(val * 4) / 4 });
+                        }}
+                        min="0"
+                        step="0.25"
+                        className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="e.g., 2"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">In 0.25 hour increments</p>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={async () => {
+                          try {
+                            await updateUserWorkoutGoals(
+                              user.id,
+                              workoutGoalsForm.cardioGoalHours,
+                              workoutGoalsForm.strengthGoalHours
+                            );
+                            setEditingWorkoutGoalsUserId(null);
+                          } catch (error: any) {
+                            alert(`Error: ${error.message}`);
+                          }
+                        }}
+                        className="flex-1 py-2 bg-green-500 hover:bg-green-600 text-white font-semibold rounded-xl transition-all"
+                      >
+                        Save
+                      </button>
+                      <button
+                        onClick={() => setEditingWorkoutGoalsUserId(null)}
+                        className="flex-1 py-2 bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold rounded-xl transition-all"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <div className="grid grid-cols-2 gap-2 mb-3">
+                      <div className="p-3 bg-red-50 rounded-xl border border-red-200">
+                        <div className="text-xs text-gray-600 mb-1">❤️ Cardio</div>
+                        <div className="text-lg font-bold text-gray-900">
+                          {user.weeklyCardioGoalHours} <span className="text-sm font-normal text-gray-600">hrs/wk</span>
+                        </div>
+                      </div>
+                      <div className="p-3 bg-blue-50 rounded-xl border border-blue-200">
+                        <div className="text-xs text-gray-600 mb-1">💪 Strength</div>
+                        <div className="text-lg font-bold text-gray-900">
+                          {user.weeklyStrengthGoalHours} <span className="text-sm font-normal text-gray-600">hrs/wk</span>
+                        </div>
+                      </div>
+                    </div>
+                    {canEdit && (
+                      <button
+                        onClick={() => {
+                          setWorkoutGoalsForm({
+                            cardioGoalHours: user.weeklyCardioGoalHours,
+                            strengthGoalHours: user.weeklyStrengthGoalHours
+                          });
+                          setEditingWorkoutGoalsUserId(user.id);
+                        }}
+                        className="w-full px-4 py-2 bg-blue-100 hover:bg-blue-200 text-blue-700 font-medium rounded-xl transition-all"
+                      >
+                        Edit Goals
+                      </button>
+                    )}
+                    {!canEdit && (
+                      <p className="text-xs text-gray-500 text-center">
+                        Only {user.displayName} or the owner can edit these goals
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
 
       {/* Your Profile */}
       {currentUser && (

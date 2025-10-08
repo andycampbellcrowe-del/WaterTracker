@@ -16,6 +16,8 @@ export type HouseholdUser = {
   color: string; // hex color
   bottleSizeOz: number;
   isOwner: boolean;
+  weeklyCardioGoalHours: number; // in 0.25 hour increments
+  weeklyStrengthGoalHours: number; // in 0.25 hour increments
   createdAt: string;
   updatedAt: string;
 };
@@ -47,12 +49,26 @@ export type IntakeEntry = {
   timestamp: string; // ISO
 };
 
+export type WorkoutType = 'cardio' | 'strength';
+
+export type WorkoutEntry = {
+  id: string;
+  householdId: string;
+  householdUserId: string;
+  workoutType: WorkoutType;
+  durationHours: number; // in 0.25 hour increments
+  notes: string | null;
+  timestamp: string; // ISO
+  createdAt: string;
+};
+
 export type AppState = {
   household: Household | null;
   currentUser: HouseholdUser | null; // The logged-in user's household_user record
   settings: AppSettings;
   users: HouseholdUser[]; // All users in the household
   entries: IntakeEntry[];
+  workoutEntries: WorkoutEntry[]; // Workout tracking entries
   celebratedDates: string[]; // ISO dates where goal was met and celebrated
 };
 
