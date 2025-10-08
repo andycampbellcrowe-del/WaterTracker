@@ -36,9 +36,6 @@ export default function Today() {
     return { user, total, percent };
   });
 
-  // Combined progress: percentage of users who have met their individual goals
-  const usersWhoMetGoal = userStats.filter(stat => stat.total >= goalOz).length;
-
   const selectedUser = users.find(u => u.id === selectedUserId);
   const bottleSize = selectedUser?.bottleSizeOz || 16;
 
